@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@riaskov/mmap-io": "^1.4.3",
+    "@types/node": "^22.9.1",
+    "fs": "^0.0.1-security",
+    "tsc": "^2.0.4",
+    "tslog": "^4.9.3",
+    "typescript": "^5.6.3"
+  }
+}
