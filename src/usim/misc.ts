@@ -2,12 +2,18 @@ import * as fs from 'fs';
 import * as trace from './trace';
 
 // Less typing for output
-export function octal(value: number): string {
-    return value.toString(8);
+export function octal(value: number, width?: number): string {
+    if (width)
+        return value.toString(8).padStart(width, '0');
+    else
+        return value.toString(8);
 }
 
-export function hex(value: number): string {
-    return value.toString(16);
+export function hex(value: number, width?: number): string {
+    if (width)
+        return value.toString(16).padStart(width, '0');
+    else
+        return value.toString(16);
 }
 
 export function
@@ -71,4 +77,60 @@ export function read32pdp(fd: number) : number
 	return (b[1] << 24 | b[0] << 16 | b[3] << 8 | b[2] << 0);
 }
 
+export class Stack<T> {
+    private items: T[];
+    // Private array to store stack elements
 
+    constructor() {
+        this.items = [];
+        // Initialize the array as empty 
+        //when a new stack is created
+    }
+
+    // Method to push an 
+    // element onto the stack
+    push(element: T): void {
+        this
+            .items.push(element);
+    }
+
+    // Method to pop an 
+    // element from the stack
+    pop(): T | undefined {
+        return this
+            .items.pop();
+    }
+
+    // Method to peek the top element
+    // of the stack without removing it
+    peek(): T | undefined {
+        return this
+            .items[this.items.length - 1];
+    }
+
+    // Method to check
+    // if the stack is empty
+    isEmpty(): boolean {
+        return this
+            .items.length === 0;
+    }
+
+    // Method to get 
+    // the size of the stack
+    size(): number {
+        return this
+            .items.length;
+    }
+
+    // Method to
+    // clear the stack
+    clear(): void {
+        this.items = [];
+    }
+
+    // Method to print 
+    // the elements of the stack
+    print(): void {
+        console.log(this.items);
+    }
+}
