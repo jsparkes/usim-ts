@@ -75,13 +75,11 @@ export function read32pdp(fd: number): number {
     return (b[1] << 24 | b[0] << 16 | b[3] << 8 | b[2] << 0);
 }
 
-export function str4(s: string): number
-{
+export function str4(s: string): number {
     return (s.charCodeAt(3) << 24) | (s.charCodeAt(2) << 16) | (s.charCodeAt(1) << 8) | s.charCodeAt(0);
 }
 
-export function unstr4(s: number): string
-{
+export function unstr4(s: number): string {
     let b = "";
 
     b += (s & 0xff);
@@ -91,11 +89,10 @@ export function unstr4(s: number): string
     return b;
 }
 
-function read_block(fd: number, block_no: number): MemoryBlock | undefined
-{
-	const offset = block_no * BLOCKSZ;
+function read_block(fd: number, block_no: number): MemoryBlock | undefined {
+    const offset = block_no * BLOCKSZ;
     let buffer = new MemoryBlock();
-    let ret = fs.readSync(fd, buffer.buffer, 0, buffer.length, offset)
+    let ret = fs.readSync(fd, buffer.buffer, 0, buffer.length, offset);
     // How to check error value?
     if (ret != buffer.length) {
         trace.error(trace.USIM, `disk read error: ret ${ret} size: ${buffer.length}`);
@@ -104,32 +101,29 @@ function read_block(fd: number, block_no: number): MemoryBlock | undefined
     return buffer;
 }
 
-function write_block(fd: number, block_no: number, buf: MemoryBlock): 0 | -1
-{
-	const offset = block_no * BLOCKSZ;
+function write_block(fd: number, block_no: number, buf: MemoryBlock): 0 | -1 {
+    const offset = block_no * BLOCKSZ;
     let ret = fs.writeSync(fd, buf.buffer, 0, buf.length, offset);
     if (ret != buf.length) {
         trace.error(trace.USIM, `disk write error: ret ${ret} size: ${offset}`);
         return -1;
     }
-	return 0;
+    return 0;
 }
 
 let bnum = - 1;
 
-export function read_virt_fd(fd: number, addr: number, addroff: number): number | undefined
-{
-	const b = (addr & 0o77777777) / 256;
-	const offset = (b + addroff) * BLOCKSZ;
+export function read_virt_fd(fd: number, addr: number, addroff: number): number | undefined {
+    const b = (addr & 0o77777777) / 256;
+    const offset = (b + addroff) * BLOCKSZ;
     let bbuf = read_block(fd, offset);
-	return bbuf?.at(addr % 256);
+    return bbuf?.at(addr % 256);
 }
 
-export function read_virt_string_fd(fd: number, addr: number, addroff:number): string
-{
+export function read_virt_string_fd(fd: number, addr: number, addroff: number): string {
     let s = "";
 
-	let v = read_virt_fd(fd, addr, addroff);
+    let v = read_virt_fd(fd, addr, addroff);
     if (v) {
         let t = v & 0xff;
         let j = 0;
@@ -144,96 +138,84 @@ export function read_virt_string_fd(fd: number, addr: number, addroff:number): s
             }
         }
     }
-	return s;
+    return s;
 }
 
 // This operated on uint64_t in original
-function load_byte(w: number, p: number, s: number): number
-{
-	return w >> p & ((1 << s) - 1);
+function load_byte(w: number, p: number, s: number): number {
+    return w >> p & ((1 << s) - 1);
 }
 
 // Also a 64 bit function
-function deposit_byte(w: number, p:number, s:number, v: number): number
-{
-	let  m = ((1 << s) - 1) << p;
-	return ((w & ~m) | (v << p & m));
+function deposit_byte(w: number, p: number, s: number, v: number): number {
+    let m = ((1 << s) - 1) << p;
+    return ((w & ~m) | (v << p & m));
 }
 
-export function ldb(ppss: number, w: number) : number
-{
-	return load_byte(w, ppss >> 6 & 0o77, ppss & 0o77);
+export function ldb(ppss: number, w: number): number {
+    return load_byte(w, ppss >> 6 & 0o77, ppss & 0o77);
 }
 
-export function dpb(v: number, ppss: number, w:number): number
-{
-	return deposit_byte(w, ppss >> 6 & 0o77, ppss & 0o77, v);
+export function dpb(v: number, ppss: number, w: number): number {
+    return deposit_byte(w, ppss >> 6 & 0o77, ppss & 0o77, v);
 }
 
-export function bit_test(bits: number, word: number): boolean
-{
-	return (bits & word) != 0;
+export function bit_test(bits: number, word: number): boolean {
+    return (bits & word) != 0;
 }
 
-export function ldb_test(ppss: number, word: number): boolean
-{
-	return ldb(ppss, word) != 0;
+export function ldb_test(ppss: number, word: number): boolean {
+    return ldb(ppss, word) != 0;
 }
 
-export function dump_write_header(fd: number, type: number, size: number): void
-{
-	write32le(fd, type);
-	write32le(fd, size);
+export function dump_write_header(fd: number, type: number, size: number): void {
+    write32le(fd, type);
+    write32le(fd, size);
 }
 
-export function dump_write_data(fd: number, size: number, data: Uint32Array | null): void
-{
+export function dump_write_data(fd: number, size: number, data: Uint32Array | null): void {
     let ret = 0;
     if (data === null)
-    	ret = fs.writeSync(fd, new Uint32Array(256), size / 4);
-    else 
-    	ret = fs.writeSync(fd, data, size / 4);
-	if (ret != size)
-        trace.error(trace.USIM, `write error; ret ${ret}, size ${size/4}`);
+        ret = fs.writeSync(fd, new Uint32Array(256), size / 4);
+    else
+        ret = fs.writeSync(fd, data, size / 4);
+    if (ret != size)
+        trace.error(trace.USIM, `write error; ret ${ret}, size ${size / 4}`);
 }
 
-export function dump_write_segment(fd: number, type: number, size:number, data: Uint32Array): void
-{
-	dump_write_header(fd, type, size);
-	dump_write_data(fd, size * 4, data);
+export function dump_write_segment(fd: number, type: number, size: number, data: Uint32Array): void {
+    dump_write_header(fd, type, size);
+    dump_write_data(fd, size * 4, data);
 }
 
-export function dump_write_value(fd: number, type: number, value:number): void
-{
-	dump_write_header(fd, type, 1);
-	write32le(fd, value);
+export function dump_write_value(fd: number, type: number, value: number): void {
+    dump_write_header(fd, type, 1);
+    write32le(fd, value);
 }
 
-export function dump_find_segment(fd: number, tag: number): number
-{
-	let t = 0;
-	// lseek(fd, 4 * 2, SEEK_SET);
+export function dump_find_segment(fd: number, tag: number): number {
+    let t = 0;
+    // lseek(fd, 4 * 2, SEEK_SET);
     let buffer = new Uint8Array(6);
     fs.readSync(fd, buffer, 0, 6, null);
-	do {
-		t = read32le(fd);
-		let s = read32le(fd);
-		if (t == tag)
-			return s;
-		// lseek(fd, s * 4, SEEK_CUR);
+    do {
+        t = read32le(fd);
+        let s = read32le(fd);
+        if (t == tag)
+            return s;
+        // lseek(fd, s * 4, SEEK_CUR);
         buffer = new Uint8Array(s * 4);
         fs.readSync(fd, buffer, 0, buffer.length, null);
-	} while (t != str4("EOF_"));
-	return -1;
+    } while (t != str4("EOF_"));
+    return -1;
 }
 
-export function dump_read_segment_single_value(fd: number, tag: number): number
-{
-	let size = dump_find_segment(fd, tag);
-	if (size != 1) {
+export function dump_read_segment_single_value(fd: number, tag: number): number {
+    let size = dump_find_segment(fd, tag);
+    if (size != 1) {
         trace.error(trace.USIM, `read error; failed to read segment (${unstr4(tag)})`);
     }
-	return read32le(fd);
+    return read32le(fd);
 }
 
 
