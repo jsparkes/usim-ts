@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import mmap from '@riaskov/mmap-io';
 import { read_phy_mem, write_phy_mem } from './memory';
 import { assert_xbus_interrupt, deassert_xbus_interrupt } from './ucode';
-import { octal } from './util';
+import { octal } from './misc';
 
 const LABEL_LABL = 0o114204405140;
 const LABEL_BLANK = 0o20020020020;
@@ -20,7 +20,7 @@ class Disk {
 }
 
 const DISKS = new Array<Disk>(DISKS_MAX);
-const BLOCKSZ = 256 * 4;
+export const BLOCKSZ = 256 * 4;
 
 let disk_status = 1;
 let disk_cmd = 0;
@@ -111,7 +111,7 @@ function disk_incr_block(unit: number) {
   }
 }
 
-function disk_ccw(disk_fn: (vma: number, unit: number, cyl: number, head: number, block: number)) {
+function disk_ccw(disk_fn: (vma: number, unit: number, cyl: number, head: number, block: number) => void): void {
   let ccw = 0;
   let vma = 0;
 

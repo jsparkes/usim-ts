@@ -1,43 +1,52 @@
-import { access_fault_bit, map_vtop, page_fault_flag, vmRead, vmWrite, write_fault_bit } from './memory';
+import { map_vtop, memory, vmRead, vmWrite } from './memory';
+import { hex, octal } from './misc';
 import * as trace from './trace';
-import { hex, octal } from './util';
+import { interrupt_pending_flag } from './ucode';
 
 // I hate the short names as global! -jsparkes
 
-export let halted = false;
-// VSCode only generated setters for class properties.
-export function sethalted(val: boolean) { halted = val; }
+// Stuff some info a class so they can be changed
+// directly when imported
 
-export let npc = 0;
-export let p0 = 0;
-export let p1 = 0;
-export let p0_pc = 0;
-export let p1_pc = 0;
+class UExec {
+    halted = false;
+    npc = 0;
+    p0 = 0;
+    p1 = 0;
+    p0_pc = 0;
+    p1_pc = 0;
+    prom_enabled_flag = true;
+    OPC = 0;
+    q = 0;
+    old_q = 0;
+    interrupt_control = 0;
+    inhibit = false;
+};
 
-export let prom_enabled_flag = true;
-export function set_prom_enabled_flag(val: boolean) { prom_enabled_flag = val; }
-export let PROM = new Uint32Array(512 * 2);  // Was uint64_t array
-let IMEM = new Uint32Array(16 * 1024 * 2); // was uint64_t array
-let AMEM = new Uint32Array(1024);
+export let uexec = new UExec();
+
+export let PROM = Array<number>(512);  // Was uint64_t array
+export let IMEM = new Uint32Array(16 * 1024); // was uint64_t array
+export let AMEM = new Uint32Array(1024);
 let aaddr = 0;
 let adata = 0;
 
-let MMEM = new Uint32Array(32);
+export let MMEM = new Uint32Array(32);
 let maddr = 0;
 let mdata = 0;
 
-let DMEM = new Uint32Array(2048);
+export let DMEM = new Uint32Array(2048);
 
-let PDL = new Uint32Array(1024);
+export let PDL = new Uint32Array(1024);
 
-let spc = new Array<number>(0);
-let spcptr = 0;
+export let spc = new Uint32Array(32);
+export let spcptr = 0;
 
-export let MFMEM = new Uint32Array(32 * 2);
+export let MFMEM = new Uint32Array(32);
 
 /* used:
- * MFMEM[1]
- * MFMEM[0]
+ * MFMEM[001]
+ * MFMEM[000]
  * MFMEM[014]
  * MFMEM[013]
  * MFMEM[016]
@@ -45,15 +54,6 @@ export let MFMEM = new Uint32Array(32 * 2);
  * MFMEM[020]
  * MFMEM[030]
  */
-
-let OPC = 0;
-export function setOPC(val: number) { OPC = val; }
-let q = 0;
-let old_q = 0;
-let interrupt_control = 0;
-
-export let inhibit = false;
-export function setinhibit(val: boolean) { inhibit = val; }
 
 let popj = 0;
 
@@ -69,7 +69,7 @@ let oah = false;
 let out = 0;
 
 function ir(pos: number, len: number): number {
-    return ((p0 >> pos)) & ((1 << len) - 1);
+    return ((uexec.p0 >> pos)) & ((1 << len) - 1);
 }
 
 function pushSPC(pc: number) {
@@ -84,19 +84,19 @@ function popSPC(): number {
 }
 
 function lcbytemode(): number {
-    if (interrupt_control & (1 << 29)) {
-        const ir4 = (p0 >> 4) & 1;
-        const ir3 = (p0 >> 3) & 1;
+    if (uexec.interrupt_control & (1 << 29)) {
+        const ir4 = (uexec.p0 >> 4) & 1;
+        const ir3 = (uexec.p0 >> 3) & 1;
         const lc1 = (MFMEM[1] >> 1) & 1;
         const lc0 = (MFMEM[1] >> 0) & 1;
-        let pos = p0 & 0o07;
+        let pos = uexec.p0 & 0o07;
         pos |= ((ir4 ^ (lc1 ^ lc0)) << 4) | ((ir3 ^ lc0) << 3);
         trace.debug(trace.MICROCODE, `byte-mode, pos ${octal(pos)}`);
         return pos;
     } else {
-        const ir4 = (p0 >> 4) & 1;
+        const ir4 = (uexec.p0 >> 4) & 1;
         const lc1 = (MFMEM[1] >> 1) & 1;
-        let pos = p0 & 0o17;
+        let pos = uexec.p0 & 0o17;
         pos |= ((ir4 ^ lc1) ? 0 : 1) << 4;
         trace.debug(trace.MICROCODE, `16b-mode, pos ${octal(pos)}`);
         return pos;
@@ -115,7 +115,7 @@ function
     if (should_dump_lc(old_lc)) {
         extra_dump_state(`lc-${old_lc}`);
     }
-    if (interrupt_control & (1 << 29)) {
+    if (uexec.interrupt_control & (1 << 29)) {
         MFMEM[1]++;	/* Byte mode. */
     } else {
         MFMEM[1] += 2;	/* 16-bit mode. */
@@ -141,7 +141,7 @@ function
          * This is ugly, but follows the hardware logic (I
          * need to distill it to intent but it seems correct).
          */
-        const lc0b = (interrupt_control & (1 << 29) ? 1 : 0) &	/* Byte mode. */
+        const lc0b = (uexec.interrupt_control & (1 << 29) ? 1 : 0) &	/* Byte mode. */
             ((MFMEM[1] & 1) ? 1 : 0);	/* LC0. */
         const lc1 = (MFMEM[1] & 2) ? 1 : 0;
         const last_byte_in_word = (~lc0b & ~lc1) & 1;
@@ -173,20 +173,20 @@ function mfread(addr: number): number {
             trace_pdlidx_read(mdata);
             return res;
         case 6:
-            return OPC;
+            return uexec.OPC;
         case 7:
-            return q;
+            return uexec.q;
         case 0o10:
             return MFMEM[0o20];
         case 0o11:
             {			/* MEMORY-MAP-DATA */
                 const l2_data = map_vtop(MFMEM[0o30]);
-                return ((write_fault_bit << 31) | (access_fault_bit << 30) | ((l2_data.l1_map & 0o37) << 24) | (l2_data.addr & 0o77777777));
+                return ((memory.write_fault_bit << 31) | (memory.access_fault_bit << 30) | ((l2_data.l1_map & 0o37) << 24) | (l2_data.addr & 0o77777777));
             }
         case 0o12:
             return MFMEM[0o30];
         case 0o13:
-            return (interrupt_control & (1 << 29)) ? MFMEM[1] : MFMEM[1] & ~1;
+            return (uexec.interrupt_control & (1 << 29)) ? MFMEM[1] : MFMEM[1] & ~1;
         case 0o14:
             res = (spcptr << 24) | (spc[spcptr] & 0o1777777);
             trace.debug(trace.MICROCODE, `reading spc[${octal(spcptr)}] + ptr -> ${octal(mdata)}`);
@@ -195,13 +195,13 @@ function mfread(addr: number): number {
         case 0o15:		/* ??? */
             res = 0;
             return res;
-        case 024:
+        case 0o24:
             trace.debug(trace.MICROCODE, `reading pdl[${octal(MFMEM[0o14])}] -> ${octal(PDL[MFMEM[0o14]])}, pop`);
             res = PDL[MFMEM[0o14]];
             trace_pdlptr_pop(mdata);
             MFMEM[0o14] = (MFMEM[0o14] - 1) & 0o1777;
             return res;
-        case 025:
+        case 0o25:
             trace.debug(trace.MICROCODE, `reading pdl[${octal(MFMEM[0o14])}] -> ${octal(PDL[MFMEM[0o14]])}`);
             res = PDL[MFMEM[0o14]];
             trace_pdlptr_read(mdata);
@@ -211,7 +211,8 @@ function mfread(addr: number): number {
             return res;
 
     }
-    trace.error(trace.USIM, `unknown MF register (${octal(addr)})`;
+    trace.error(trace.USIM, `unknown MF register (${octal(addr)})`);
+    return 0;
 }
 
 function mfwrite(dest: number, data: number): void {
@@ -220,7 +221,7 @@ function mfwrite(dest: number, data: number): void {
         case 1:		/* LOCATION-COUNTER LC (location counter) 26 bits. */
             trace.debug(trace.UCODE, `writing LC <- ${octal(data)}`);
             MFMEM[1] = (MFMEM[1] & ~0o377777777) | (data & 0o377777777);
-            if (interrupt_control & (1 << 29)) {
+            if (uexec.interrupt_control & (1 << 29)) {
                 /*
                  * ---!!! Not sure about byte mode...
                  */
@@ -238,21 +239,21 @@ function mfwrite(dest: number, data: number): void {
             return;
         case 2:		/* INTERRUPT-CONTROL Interrupt Control <29-26>. */
             trace.debug(trace.UCODE, `writing IC <- ${octal(data)}`);
-            interrupt_control = data;
-            if (interrupt_control & (1 << 26)) {
+            uexec.interrupt_control = data;
+            if (uexec.interrupt_control & (1 << 26)) {
                 trace.debug(trace.UCODE, "ic: sequence break request");
             }
-            if (interrupt_control & (1 << 27)) {
+            if (uexec.interrupt_control & (1 << 27)) {
                 trace.debug(trace.UCODE, "ic: interrupt enable");
             }
-            if (interrupt_control & (1 << 28)) {
+            if (uexec.interrupt_control & (1 << 28)) {
                 trace.debug(trace.UCODE, "ic: bus reset");
             }
-            if (interrupt_control & (1 << 29)) {
+            if (uexec.interrupt_control & (1 << 29)) {
                 trace.debug(trace.UCODE, "ic: lc byte mode");
             }
             MFMEM[1] = (MFMEM[1] & ~(0o17 << 26)) |	/* Preserve flags. */
-                (interrupt_control & (0o17 << 26));
+                (uexec.interrupt_control & (0o17 << 26));
             return;
         case 0o10:		/* C-PDL-BUFFER-POINTER PDL (addressed by pointer) */
             trace.debug(trace.UCODE, `writing pdl[${octal(MFMEM[0o14])}] <- ${octal(data)}`);
@@ -271,10 +272,10 @@ function mfwrite(dest: number, data: number): void {
             trace_pdlidx_write(data);
             return;
         case 0o13:		/* PDL-BUFFER-INDEX PDL index. */
-            trace.debug(trace.UCODE, `pdl-index <- ${octal(data)}`;
+            trace.debug(trace.UCODE, `pdl-index <- ${octal(data)}`);
             MFMEM[0o13] = data & 0o1777;
             return;
-        case 014:		/* PDL-BUFFER-POINTER PDL pointer. */
+        case 0o14:		/* PDL-BUFFER-POINTER PDL pointer. */
             trace.debug(trace.UCODE, `pdl-ptr <- ${octal(data)}`);
             MFMEM[0o14] = data & 0o1777;
             return;
@@ -333,8 +334,7 @@ function mfwrite(dest: number, data: number): void {
 /*
  * Write value to decoded destination.
  */
-function
-    writeDest(dest: number): void {
+function writeDest(dest: number): void {
     if (dest & 0o4000) {
         AMEM[dest & 0o3777] = out;
         return;
@@ -345,35 +345,35 @@ function
 
 // ALU
 function qControl(): void {
-    old_q = q;
+    uexec.old_q = uexec.q;
     switch (ir(0, 2)) {
         case 1:
             trace.debug(trace.MICROCODE, "q<<");
-            q <<= 1;
+            uexec.q <<= 1;
             /*
              * Inverse of ALU sign.
              */
             if ((alu_out & 0x80000000) == 0)
-                q |= 1;
+                uexec.q |= 1;
             break;
         case 2:
             trace.debug(trace.MICROCODE, "q>>");
-            q >>= 1;
+            uexec.q >>= 1;
             if (alu_out & 1)
-                q |= 0x80000000;
+                uexec.q |= 0x80000000;
             break;
         case 3:
             trace.debug(trace.MICROCODE, "q<-alu");
-            q = alu_out;
+            uexec.q = alu_out;
             break;
     }
 }
 
 function outControl(): void {
-    switch ((p0 >> 12) & 3) {
+    switch ((uexec.p0 >> 12) & 3) {
         case 0:
             trace.warning(trace.MICROCODE, "out == 0!");
-            out = rol32(mdata, p0 & 037);
+            out = rol32(mdata, uexec.p0 & 0o37);
             break;
         case 1:
             out = alu_out;
@@ -387,7 +387,7 @@ function outControl(): void {
             out = (alu_out >> 1) | (alu_carry ? 0x80000000 : 0);
             break;
         case 3:
-            out = (alu_out << 1) | ((old_q & 0x80000000) ? 1 : 0);
+            out = (alu_out << 1) | ((uexec.old_q & 0x80000000) ? 1 : 0);
             break;
     }
 }
@@ -536,22 +536,22 @@ function divOps(op: number): void {
 
     switch (op) {
         case 0o40:		// Multiply step.
-            if (q & 1) {
-                add32(adata, mdata, cin, alu_out, alu_carry);
+            if (uexec.q & 1) {
+                qadd32(adata, mdata, cin, alu_out, alu_carry);
             } else {
                 alu_out = mdata;
                 alu_carry = alu_out & 0x80000000 ? 1 : 0;
             }
             break;
         case 0o41:		// Divide step.
-            if (q & 1) {
+            if (uexec.q & 1) {
                 sub32(mdata, abs32(adata), !cin, alu_out, alu_carry);
             } else {
                 add32(mdata, abs32(adata), cin, alu_out, alu_carry);
             }
             break;
         case 0o45:		// Remainder correction.
-            if (q & 1) {
+            if (uexec.q & 1) {
                 alu_carry = 0;
             } else {
                 add32(alu_out, abs32(adata), cin, alu_out, alu_carry);
@@ -559,7 +559,7 @@ function divOps(op: number): void {
             break;
         case 0o51:		// Initial divide step.
             trace.debug(trace.MICROCODE, "divide-first-step");
-            trace.debug(trace.MICROCODE, `divide: ${octal(q)} / ${octal(adata)}`);
+            trace.debug(trace.MICROCODE, `divide: ${octal(uexec.q)} / ${octal(adata)}`);
             sub32(mdata, abs32(adata), !cin, alu_out, alu_carry);
             trace.debug(trace.MICROCODE, `alu_out ${hex(alu_out)} ${octal(alu_out)} ${alu_out}`);
             break;
@@ -567,7 +567,7 @@ function divOps(op: number): void {
 }
 
 function alu(): void {
-    const aluop = (p0 >> 3) & 0o77;
+    const aluop = (uexec.p0 >> 3) & 0o77;
     const dest = ir(14, 12);
 
     alu_carry = 0;
@@ -618,7 +618,7 @@ function alu(): void {
     qControl();
     outControl();
     writeDest(dest);
-    trace.debug(trace.MICROCODE, `alu_out ${hex(alu_out)} alu_carry ${alu_carry}  q ${hex(q)}`);
+    trace.debug(trace.MICROCODE, `alu_out ${hex(alu_out)} alu_carry ${alu_carry}  q ${hex(uexec.q)}`);
 }
 
 // dispatch
@@ -696,7 +696,7 @@ function dsp() {
     r = (disp_addr >> 16) & 1;
     trace.debug(trace.MICROCODE, `${n ? "N " : ""}${p ? "P " : ""}${r ? "R " : ""}`);
     if (n_plus1 && n) {
-        npc--;
+        uexec.npc--;
     }
     /*
      * Enable instruction sequence hardware.
@@ -706,14 +706,14 @@ function dsp() {
         advanceLC(0);
     }
     if (n)
-        inhibit = true;
+        uexec.inhibit = true;
     if (p && r)
         return;
     if (p) {
         if (!n)
-            pushSPC(npc);
+            pushSPC(uexec.npc);
         else
-            pushSPC(npc - 1);
+            pushSPC(uexec.npc - 1);
     }
     if (r) {
         target = popSPC();
@@ -723,7 +723,7 @@ function dsp() {
         }
         target &= 0o37777;
     }
-    npc = target;
+    uexec.npc = target;
     popj = 0;
 }
 
@@ -747,18 +747,19 @@ function jcond(): boolean {
         case 3:
             return mdata == adata;
         case 4:
-            return page_fault_flag;	/* vmaok */
+            return memory.page_fault_flag;	/* vmaok */
         case 5:
             trace.debug(trace.MICROCODE, "jump i|pf\n");	/* pgf.or.int */
-            return page_fault_flag || (interrupt_control & (1 << 27) ? interrupt_pending_flag : false);
+            return memory.page_fault_flag || (uexec.interrupt_control & (1 << 27) ? interrupt_pending_flag === 1 : false);
 
         case 6:
             trace.debug(trace.MICROCODE, "jump i|pf|sb\n");	/* pgf.or.int.sb */
-            return page_fault_flag || (interrupt_control & (1 << 27) ? interrupt_pending_flag : false) || (interrupt_control & (1 << 26)) === 1;
+            return memory.page_fault_flag || (uexec.interrupt_control & (1 << 27) ? interrupt_pending_flag === 1 : false) || (uexec.interrupt_control & (1 << 26)) === 1;
         case 7:
             return true;
     }
     trace.error(trace.MICROCODE, `unknown jump (%${octal(ir(0, 4))}`);
+    return false;
 }
 
 function jmp() {
@@ -771,7 +772,7 @@ function jmp() {
     trace.debug(trace.MICROCODE, `a=${octal(aaddr)} (${octal(adata)}), m=${octal(maddr)} (${octal(mdata)})`);
     if (ir(10, 2) == 1) {
         trace.debug(trace.MICROCODE, "halted");
-        halted = true;
+        uexec.halted = true;
         return;
     }
     if (ir(10, 2) == 3) {
@@ -794,9 +795,9 @@ function jmp() {
         cond = !cond;
     if (p && cond) {
         if (!n)
-            pushSPC(npc);
+            pushSPC(uexec.npc);
         else
-            pushSPC(npc - 1);
+            pushSPC(uexec.npc - 1);
     }
     if (r && cond) {
         target = popSPC();
@@ -808,8 +809,8 @@ function jmp() {
     }
     if (cond) {
         if (n)
-            inhibit = true;
-        npc = target;
+            uexec.inhibit = true;
+        uexec.npc = target;
         /*
          * inhibit possible POPJ.
          */
@@ -831,7 +832,7 @@ function msk(pos: number): number {
 
     //DEBUG(TRACE_MICROCODE, "widthm1 %o, pos %o, mr_sr_bits %o\n", widthm1, pos, mr_sr_bits);
     trace.debug(trace.MICROCODE, `left_mask_index ${octal(left_mask_index)}, right_mask_index ${octal(right_mask_index)}`);
-    trace.debug(trace.MICROCODE, `left_mask ${octal(left_mask)}, right_mask ${octal(right_mask)}, mask ${octal(left_mask & right_mask)}}`;
+    trace.debug(trace.MICROCODE, `left_mask ${octal(left_mask)}, right_mask ${octal(right_mask)}, mask ${octal(left_mask & right_mask)}}`);
     return left_mask & right_mask;
 }
 
@@ -880,12 +881,12 @@ function incNPC() {
     /*
      * CPU pipeline.
      */
-    p0 = p1;
-    p0_pc = p1_pc;
+    uexec.p0 = uexec.p1;
+    uexec.p0_pc = uexec.p1_pc;
     // p1 = FETCH();
-    p1 = prom_enabled_flag ? PROM[npc] : IMEM[npc];
-    p1_pc = npc;
-    npc++;
+    uexec.p1 = uexec.prom_enabled_flag ? PROM[uexec.npc] : IMEM[uexec.npc];
+    uexec.p1_pc = uexec.npc;
+    uexec.npc++;
 }
 
 function step() {
@@ -897,23 +898,23 @@ function step() {
         if (new_md_delay == 0)
             MFMEM[0o30] = new_md;
     }
-    if (inhibit == true) {
-        trace.debug(trace.MICROCODE, `inhibit; npc ${octal(npc)}`);
-        inhibit = false;
+    if (uexec.inhibit == true) {
+        trace.debug(trace.MICROCODE, `inhibit; npc ${octal(uexec.npc)}`);
+        uexec.inhibit = false;
         incNPC();
     }
     if (oal == true) {
         trace.debug(trace.MICROCODE, `merging oa lo ${octal(MFMEM[0o16])}`);
         oal = false;
-        p0 |= MFMEM[0o16];
+        uexec.p0 |= MFMEM[0o16];
     }
     if (oah == true) {
         trace.debug(trace.MICROCODE, `merging oa hi ${octal(MFMEM[0o17])}`);
         oah = false;
-        p0 |= MFMEM[0o17] << 26;
+        uexec.p0 |= MFMEM[0o17] << 26;
     }
     trace_ucode();
-    record_pc_history(p0_pc);
+    record_pc_history(uexec.p0_pc);
     popj = ir(42, 1);
     aaddr = ir(32, 10);
     maddr = ir(26, 5);
@@ -936,13 +937,13 @@ function step() {
     }
     if (popj) {
         trace.debug(trace.MICROCODE, "popj; ");
-        let old_npc = npc;
-        npc = popSPC();
-        if ((npc >> 14) & 1) {
-            trace.debug(trace.UCODE, `advancing LC due to POPJ (old npc = ${(hex(old_npc))}, new npc = ${hex(npc)})`);
-            npc = advanceLC(npc);
+        let old_npc = uexec.npc;
+        uexec.npc = popSPC();
+        if ((uexec.npc >> 14) & 1) {
+            uexec.npc = advanceLC(uexec.npc);
+            trace.debug(trace.UCODE, `advancing LC due to POPJ (old npc = ${(hex(old_npc))}, new npc = ${hex(uexec.npc)})`);
         }
-        npc &= 0o37777;
+        uexec.npc &= 0o37777;
     }
 }
 

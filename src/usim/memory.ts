@@ -11,8 +11,7 @@ import {
 } from "./ucode";
 import {
   MFMEM,
-  set_prom_enabled_flag,
-  setOPC
+  uexec
 } from "./uexec";
 import { warm_boot_flag } from "./usim";
 import { octal } from "./misc";
@@ -29,10 +28,10 @@ export class MemoryBlock {
   }
 }
 
-var PhysPages: Map<number, MemoryBlock>;
+export let PhysPages: Map<number, MemoryBlock>;
 const phys_ram_pages = 8192; // 2 MW
 
-function get_page(pn: number): MemoryBlock {
+export function get_page(pn: number): MemoryBlock {
   if (!PhysPages.get(pn)) {
     trace.debug(
       trace.MISC,
@@ -48,7 +47,7 @@ function get_page(pn: number): MemoryBlock {
   return page;
 }
 
-export function read_phy_mem(paddr: number): number | undefined{
+export function read_phy_mem(paddr: number): number | undefined {
   let pn = paddr >> 8;
   if (pn > phys_ram_pages) {
     trace.error(
@@ -85,8 +84,8 @@ export function write_phy_mem(paddr: number, value: number): number {
 }
 
 // L1/L2 mapping
-var l1_map = new Uint32Array(2048);
-var l2_map = new Uint32Array(1024);
+export let l1_map = new Uint32Array(2048);
+export let l2_map = new Uint32Array(1024);
 
 export class vtop {
   addr: number = 0;
@@ -148,9 +147,13 @@ export function map_vtop(virt: number): vtop {
 }
 
 // Virtual memory
-export let write_fault_bit = 0;
-export let access_fault_bit = 0;;
-export let page_fault_flag = false;
+export class Memory {
+  write_fault_bit = 0;
+  access_fault_bit = 0;;
+  page_fault_flag = false;
+};
+
+export let memory = new Memory();
 
 export function unibus_read(offset: number): number {
   switch (offset) {
@@ -223,9 +226,9 @@ export function unibus_read(offset: number): number {
  * Read virtual memory, returns -1 on fault and 0 if OK.
  */
 export function vmRead(vaddr: number): number {
-  access_fault_bit = 0;
-  write_fault_bit = 0;
-  page_fault_flag = false;
+  memory.access_fault_bit = 0;
+  memory.write_fault_bit = 0;
+  memory.page_fault_flag = false;
   /*
    * 14 bit page number.
    */
@@ -235,9 +238,9 @@ export function vmRead(vaddr: number): number {
     /*
      * No access permission.
      */
-    access_fault_bit = 1;
-    page_fault_flag = true;
-    setOPC(pn);
+    memory.access_fault_bit = 1;
+    memory.page_fault_flag = true;
+    uexec.OPC = pn;
     trace.error(trace.UCODE, `vmRead(vaddr=${vaddr.toString(8)}) access fault`);
     return 0;
   }
@@ -285,8 +288,8 @@ export function vmRead(vaddr: number): number {
    * Page fault.
    */
   if (!page) {
-    page_fault_flag = true;
-    setOPC(pn);
+    memory.page_fault_flag = true;
+    uexec.OPC = pn;
     trace.error(trace.UCODE, `vmRead(vaddr=${octal(vaddr)}) page fault`);
     return 0;
   }
@@ -330,7 +333,7 @@ export function unibus_write(offset: number, v: number) {
       trace.info(trace.UNIBUS, `unibus: write spy: mode register: ${octal(v)}`);
       if ((v & 0o44) == 0o44) {
         trace.debug(trace.UCODE, "unibus: disabling prom enable flag");
-        set_prom_enabled_flag(false);
+        uexec.prom_enabled_flag = false;
         if (warm_boot_flag) restore_state(ucfg.usim_state_filename);
       }
       if (v & 2) {
@@ -386,9 +389,9 @@ export function unibus_write(offset: number, v: number) {
 export function vmWrite(vaddr: number, v: number): number {
   trace_memory_location(false, vaddr, MFMEM[1]);
 
-  write_fault_bit = 0;
-  access_fault_bit = 0;
-  page_fault_flag = false;
+  memory.write_fault_bit = 0;
+  memory.access_fault_bit = 0;
+  memory.page_fault_flag = false;
   /*
    * 14 bit page number.
    */
@@ -398,9 +401,9 @@ export function vmWrite(vaddr: number, v: number): number {
     /*
      * No access permission.
      */
-    access_fault_bit = 1;
-    page_fault_flag = true;
-    setOPC(pn);
+    memory.access_fault_bit = 1;
+    memory.page_fault_flag = true;
+    uexec.OPC = pn;
     trace.error(trace.UCODE, `vmWrite(vaddr=${octal(vaddr)}) access fault`);
     return -1;
   }
@@ -408,9 +411,9 @@ export function vmWrite(vaddr: number, v: number): number {
     /*
      * No write permission.
      */
-    write_fault_bit = 1;
-    page_fault_flag = true;
-    setOPC(pn);
+    memory.write_fault_bit = 1;
+    memory.page_fault_flag = true;
+    uexec.OPC = pn;
     trace.error(trace.UCODE, `vmWrite(vaddr=${octal(vaddr)}) write fault`);
     return -1;
   }
