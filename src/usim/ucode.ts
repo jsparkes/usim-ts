@@ -421,7 +421,7 @@ const PAGES_TO_SAVE: number = 8192;
 
 let restored = false;
 
-function restore_state(fn: string): void {
+export function restore_state(fn: string): void {
   if (restored == true) {
     trace.debug(trace.USIM, "mem: state already restored\n");
     return;

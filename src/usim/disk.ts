@@ -20,6 +20,8 @@ class Disk {
 }
 
 const DISKS = new Array<Disk>(DISKS_MAX);
+
+// in bytes
 export const BLOCKSZ = 256 * 4;
 
 let disk_status = 1;

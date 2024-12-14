@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as trace from './trace';
 import { BLOCKSZ } from './disk';
+import { MemoryBlock } from './memory';
 
 // Less typing for output
 export function octal(value: number, width?: number): string {
@@ -90,24 +91,24 @@ export function unstr4(s: number): string
     return b;
 }
 
-function read_block(fd: number, block_no: number): Uint32Array | undefined
+function read_block(fd: number, block_no: number): MemoryBlock | undefined
 {
 	const offset = block_no * BLOCKSZ;
-    let buffer = new Uint32Array(offset);
-    let ret = fs.readSync(fd, buffer, 0, length, offset)
+    let buffer = new MemoryBlock();
+    let ret = fs.readSync(fd, buffer.buffer, 0, buffer.length, offset)
     // How to check error value?
-    if (ret != BLOCKSZ) {
-        trace.error(trace.USIM, `disk read error: ret ${ret} size: ${offset}`);
+    if (ret != buffer.length) {
+        trace.error(trace.USIM, `disk read error: ret ${ret} size: ${buffer.length}`);
         return undefined;
     }
     return buffer;
 }
 
-function write_block(fd: number, block_no: number, buf: Uint32Array): 0 | -1
+function write_block(fd: number, block_no: number, buf: MemoryBlock): 0 | -1
 {
 	const offset = block_no * BLOCKSZ;
-    let ret = fs.writeSync(fd, buf, 0, buf.length, offset);
-    if (ret != BLOCKSZ) {
+    let ret = fs.writeSync(fd, buf.buffer, 0, buf.length, offset);
+    if (ret != buf.length) {
         trace.error(trace.USIM, `disk write error: ret ${ret} size: ${offset}`);
         return -1;
     }

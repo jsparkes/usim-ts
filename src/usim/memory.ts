@@ -18,6 +18,7 @@ import { octal } from "./misc";
 
 export class MemoryBlock {
   readonly buffer = new Uint32Array(256); // 1024 bytes
+  readoonly length = this.buffer.length;
   constructor() { }
   at(index: number) {
     return this.buffer[index];
