@@ -96,3 +96,14 @@ export function register_idle_change_handler(handler: ((state: boolean) => void)
     return old_change_handler;
 }
 
+export function set_idle_cycles(num: number): void {
+    idle_cycles = num;
+}
+
+export function set_idle_quantum(num: number): void {
+    idle_quantum = num;
+}
+
+export function set_idle_timeout(num: number): void {
+    idle_timeout = num;
+}

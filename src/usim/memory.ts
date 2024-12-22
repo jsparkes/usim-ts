@@ -2,7 +2,6 @@ import { disk_xbus_read, disk_xbus_write } from "./disk";
 import { iob_unibus_read, iob_unibus_write } from "./iob";
 import * as trace from "./trace";
 import { tv_read, tv_write, tv_xbus_read, tv_xbus_write } from "./tv";
-import { ucfg } from "./ucfg";
 import {
   interrupt_status_reg,
   restore_state,
@@ -18,7 +17,8 @@ import { octal } from "./misc";
 
 export class MemoryBlock {
   readonly buffer = new Uint32Array(256); // 1024 bytes
-  readoonly length = this.buffer.length;
+  readonly length = this.buffer.length;
+  
   constructor() { }
   at(index: number) {
     return this.buffer[index];

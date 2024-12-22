@@ -137,5 +137,9 @@ export function tv_poll() {
   //sdl2_event();
 }
 
+export function set_tv_monitor(tv: number): void {
+  tv_monitor = tv;
+}
+
 
 
