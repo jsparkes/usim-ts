@@ -7,7 +7,7 @@ export let tv_monitor = 1;		/* Default is Other (1). */
 
 export let tv_width = 768;
 export let tv_height = 963;
-export let tv_bitmap = new Uint32Array(1024 * 1024);
+export let tv_bitmap = new Uint16Array(1024 * 1024);
 
 let tv_csr = 0;
 let tv_colorbit = 0;
