@@ -2,10 +2,14 @@
   "dependencies": {
     "@riaskov/mmap-io": "^1.4.3",
     "@types/node": "^22.9.1",
+    "canvas": "^2.11.2",
     "config-ini-parser": "^1.6.1",
     "fs": "^0.0.1-security",
     "tsc": "^2.0.4",
     "tslog": "^4.9.3",
     "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1"
   }
 }

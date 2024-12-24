@@ -12,6 +12,20 @@ type Sections = Map<string, Names>;
 let defaults = new Map<string, { [key: string]: string; }>();
 let iniFile: ConfigIniParser | undefined;
 
+export class Configuration {
+	icon_file = "icon.bmp";
+	window_position_x = 0;
+	window_position_y = 0;
+	scale: number = 1;
+	allow_resize = false;
+	beep_amplitude = 1.0;
+	ascii_beep = false;
+	uch11_backend: any;
+	hybrid_udp_and_local: boolean;
+}
+
+export let ucfg = new Configuration();
+
 function X(config: ConfigIniParser, section: string, name: string, value: string): void {
 	defaults.set(section, { name: value });
 }
@@ -185,7 +199,6 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 			else if (streq(val, "other")) set_tv_monitor(1);
 			else {
 				trace.warning(trace.USIM, `unknown monitor type: ${val}`);
-				return true;
 			}
 		}
 		else {
@@ -200,8 +213,8 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 			const x = parseInt(nums[0]);
 			const y = parseInt(nums[1]);
 			// do not override -g by checking the values first
-			if (window_position_x < 0) window_position_x = x;
-			if (window_position_y < 0) window_position_y = y;
+			if (ucfg.window_position_x < 0) ucfg.window_position_x = x;
+			if (ucfg.window_position_y < 0) ucfg.window_position_y = y;
 		} else {
 			trace.warning(trace.USIM, `illegal value for geometry: ${val}`);
 		}
@@ -211,17 +224,16 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 
 	if (val = INIHEQ("usim", "scale")) {
 		if (val) {
-			let scale = parseFloat(val);
-			set_video_scale(scale);
+			ucfg.scale = parseFloat(val);
 		}
 	}
 
 	if (val = INIHEQ("usim", "allow_resize")) {
 		if (val) {
 			if (streq(val, "true"))
-				set_video_allow_resize(true);
+				ucfg.allow_resize = true;
 			else if (streq(val, "false"))
-				set_video_allow_resize(false);
+				ucfg.allow_resize = false;
 			else {
 				trace.warning(trace.USIM, `unknown value for allow_resize: ${val}`);
 			}
@@ -233,36 +245,21 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 			const value = parseFloat(val);
 			if ((value > 1.0) || (value < 0.0)) {
 				trace.warning(trace.USIM, `invalid value ${value} for beep_amplitude (should be between 0 and 1), using 0`);
-				set_audio_beep_amplitude(0.0);
+				ucfg.beep_amplitude = 0.0;
 			} else {
-				set_audio_beep_amplitude(value);
+				ucfg.beep_amplitude = value;
 			}
 		}
-		return 1;
 	}
 
 	if (val = INIHEQ("usim", "use_ascii_beep")) {
-		if (streq(val, "true")) set_audio_use_ascii_beep(true);
-		else if (streq(val, "false")) set_audio_use_ascii_beep(false);
+		if (streq(val, "true")) ucfg.ascii_beep = true;
+		else if (streq(val, "false")) ucfg.ascii_beep = false;
 		else {
 			trace.warning(trace.USIM, `unknown value for use_ascii_beep: ${val}`);
 		}
 	}
 
-
-	// #elif WITH_SDL2;
-	/* TODO Validation */
-	// if (INIHEQ("usim", "scale"))
-	// read_double_value(name, value, & sdl2_scale);
-
-	// if (INIHEQ("usim", "allow_resize")) {
-	// 	if (streq(cfg -> usim_allow_resize, "true")) sdl2_allow_resize = true;
-	// 	else if (streq(cfg -> usim_allow_resize, "false")) sdl2_allow_resize = false;
-	// 	else {
-	// 		warnx("unknown value for allow_resize: %s", cfg -> usim_allow_resize);
-	// 		return 1;
-	// 	}
-	// }
 
 	// if (INIHEQ("usim", "scale_filter")) {
 	// 	if (streq(cfg -> usim_scale_filter, "nearest"))
@@ -283,7 +280,7 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 			if (!fs.existsSync(val)) {
 				trace.warning(trace.USIM, `can't open icon files "${val}"`);
 			} else {
-				set_usim_icon_file(val);
+				ucfg.icon_file = val;
 			}
 		}
 	}
@@ -309,20 +306,20 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 	}
 
 	if (val = INIHEQ("chaos", "backend")) {
-		if (streq(val, "daemon")) uch11_backend = UCH11_BACKEND_DAEMON;
-		else if (streq(val, "local")) uch11_backend = UCH11_BACKEND_LOCAL;
-		else if (streq(val, "udp")) uch11_backend = UCH11_BACKEND_UDP;
+		if (streq(val, "daemon")) ucfg.uch11_backend = UCH11_BACKEND_DAEMON;
+		else if (streq(val, "local")) ucfg.uch11_backend = UCH11_BACKEND_LOCAL;
+		else if (streq(val, "udp")) ucfg.uch11_backend = UCH11_BACKEND_UDP;
 		else if (streq(val, "hybrid")) {
-			uch11_backend = UCH11_BACKEND_UDP;
-			hybrid_udp_and_local = true;
+			ucfg.uch11_backend = UCH11_BACKEND_UDP;
+			ucfg.hybrid_udp_and_local = true;
 		}
 		else {
 			trace.warning(trace.USIM, `unknown chaos backend: ${val}`);
 		}
 	}
 	if (val = INIHEQ("chaos", "udp_local_hybrid")) {
-		if (streq(val, "true")) hybrid_udp_and_local = true;
-		else if (streq(val, "false")) hybrid_udp_and_local = false;
+		if (streq(val, "true")) ucfg.hybrid_udp_and_local = true;
+		else if (streq(val, "false")) ucfg.hybrid_udp_and_local = false;
 		else {
 			trace.warning(trace.USIM, `unknown chaos udp_local_hybrid: ${val}`);
 		}
@@ -510,4 +507,8 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 
 
 
+
+export function icon_file(icon_file: any) {
+    throw new Error('Function not implemented.');
+}
 
