@@ -7,7 +7,7 @@ export let tv_monitor = 1;		/* Default is Other (1). */
 
 export let tv_width = 768;
 export let tv_height = 963;
-export let tv_bitmap = new Uint32Array(1024 * 1024);
+export let tv_bitmap = new Uint16Array(1024 * 1024);
 
 let tv_csr = 0;
 let tv_colorbit = 0;
@@ -141,5 +141,32 @@ export function set_tv_monitor(tv: number): void {
   tv_monitor = tv;
 }
 
+export function tv_init(): void
+{
+  let tv_bitmap = new Uint32Array(tv_width * tv_height);
 
+	tv_colorbit = 0;
+	switch (tv_monitor) {
+	case 0:		/* CPT */
+    trace.notice(trace.USIM, `tv: using cpt monitor`);
+		tv_width = 768;
+		tv_height = 896;
+		break;
+	case 1:		/* That other thing ... */
+		trace.notice(trace.USIM, "tv: using other monitor");
+		tv_width = 768;
+		tv_height = 963;
+		break;
+	default:
+    trace.error(trace.USIM, `unknown monitor type: ${tv_monitor}`);
+		break;
+	}
+// #ifdef WITH_X11
+// 	x11_init();
+// #elif WITH_SDL2
+// 	sdl2_init();
+// #endif
+  html_init();
+  setInterval(sigalrm_handler, 16000);
+}
 

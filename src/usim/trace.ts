@@ -5,7 +5,7 @@ const log: Logger<ILogObj> = new Logger();
 
 export const ALL = "ALL";
 export const ANY = "ANY";
-export const CHAOS = "CHAOS"
+export const CHAOS = "CHAOS";
 export const DISK = "DISK";
 export const KBD = "KBD";
 export const LASHUP = "LASHUP";
@@ -41,9 +41,9 @@ export let stream = process.stdout;
 
 export function set_trace_level(newLevel: TraceLevel) {
     level = newLevel;
- }
+}
 
-export function set_trace_facilities(target: string[]) { 
+export function set_trace_facilities(target: string[]) {
     facilities = new Set(target);
 }
 
@@ -66,3 +66,5 @@ export function info(flag: string, msg: string) { }
 export function warning(flags: string, msg: string) { }
 
 export function debug(flags: string, msg: string) { }
+
+export function notice(flags: any, msg: string): void { }
