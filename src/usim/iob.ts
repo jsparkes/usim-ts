@@ -6,6 +6,10 @@ export let iob_csr = 0;
 let iob_usec = 0;
 let start_time = new Date().getMilliseconds() * 1000;
 
+export function set_iob_csr(n: number) {
+  iob_csr = n;
+}
+
 function get_us_clock(): number {
   let now = new Date().getMilliseconds() * 1000;
   let diff = now - start_time;

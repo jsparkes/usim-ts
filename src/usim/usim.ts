@@ -1,8 +1,11 @@
 import * as trace from './trace';
+import * as fs from 'fs';
 import * as ucfg from './ucfg';
+import { dump_state } from './ucode';
 import { SymbolTable } from "./usym";
 
-export const config_filename = "usim-301-0.ini";
+export const VERSION = "0.1.1";
+export let config_filename = "usim.ini";
 export let warm_boot_flag = false;
 export let headless = false;
 export let icon_file = "icon.bmp";
@@ -44,7 +47,10 @@ function usage():void {
 
 export function usim_init(int argc, char **argv)
 {
-	printf("CADR emulator v" VERSION ".\n");
+	process.stdout.write(`CADR emulator ${VERSION}`);
+	if (!fs.existsSync(config_filename)) {
+		config_fileName = "usim-301-0.ini";
+	}
 	config_filename = "usim.ini";
 	warm_boot_flag = false;
 	int c;

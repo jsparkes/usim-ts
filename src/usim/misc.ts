@@ -276,3 +276,22 @@ export class Stack<T> {
         console.log(this.items);
     }
 }
+
+export class Queue<T> {
+    elements: T[] = [];
+    constructor(...elements: T[]) {
+        // Initializing the queue with given arguments 
+        this.elements = [...elements];
+    }
+    // Proxying the push/shift methods
+    push(...args: T[]) {
+        return this.elements.push(...args);
+    }
+    shift(): T | undefined {
+        return this.elements.shift();
+    }
+    // Add some length utility methods
+    get length() {
+        return this.elements.length;
+    }
+}

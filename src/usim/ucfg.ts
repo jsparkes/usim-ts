@@ -508,6 +508,11 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 	}
 }
 
+export function ini_parse(fn: string): ConfigIniParser {
+	let parser = new ConfigIniParser();
+	let contents = fs.readFileSync(fn);
+	parser.parse(contents.toString());
+	
+	return parser;
 
-
-
+}

@@ -369,7 +369,7 @@ function show_l2_map(): void {
   process.stdout.write("\n");
 }
 
-function dump_state(verbose: boolean): void {
+export function dump_state(verbose: boolean): void {
   let pc = 0;
   /*
    * Find most recent PC.
