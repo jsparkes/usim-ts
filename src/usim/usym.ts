@@ -44,7 +44,7 @@ export function sym_find_by_type_val(tab: SymbolTable, symType: SymbolType, v: n
     return undefined;
 }
 
-export function sym_find(tab: SymbolTable, name:string): number | undefined {
+export function sym_find(tab: SymbolTable, name: string): number | undefined {
     return tab.symbols.get(name)?.value;
 }
 
@@ -58,24 +58,26 @@ export function sym_find(tab: SymbolTable, name:string): number | undefined {
  *
  * Returns false if it couldn't parse the file successfully.
  */
-export function
-sym_read_file(tab: SymbolTable, filename: string): boolean 
-{
+export function sym_read_file(tab: SymbolTable, filename: string | undefined): boolean {
+    if (!filename) {
+        return false;
+    }
+
     const fileStream = fs.createReadStream(filename);
     const rl = readline.createInterface({
         input: fileStream,
         crlfDelay: Infinity
-      });
-	const f = fs.openSync(filename, "r");
+    });
+    const f = fs.openSync(filename, "r");
     if (f <= 0) {
-		trace.warning(trace.USIM, `failed to open: ${filename}`);
-		return false;
-	}
-	tab.name = filename;
+        trace.warning(trace.USIM, `failed to open: ${filename}`);
+        return false;
+    }
+    tab.name = filename;
 
     // Hopefully the file is not too large.
     // I can't believe there isn't a readline function for node.
-    const data = fs.readFileSync(f, {encoding: "utf8"});
+    const data = fs.readFileSync(f, { encoding: "utf8" });
     const lines = data.split("\n");
 
     if (!lines[1].startsWith("-4 ")) {
@@ -83,10 +85,10 @@ sym_read_file(tab: SymbolTable, filename: string): boolean
         fs.close(f);
         return false;
     }
-	/*
-	 * First symbol is handled specially, since directly after the
-	 * -2 marker the symbol, type and address follows.
-	 */
+    /*
+     * First symbol is handled specially, since directly after the
+     * -2 marker the symbol, type and address follows.
+     */
     let words = lines[2].split(' ');
     if (words.length != 4 || words[0] != "-2") {
         trace.error(trace.USIM, "sym_read_file: failed to find symbol dump section (-2)");
@@ -94,7 +96,7 @@ sym_read_file(tab: SymbolTable, filename: string): boolean
         return false;
     }
     sym_add(tab, lines[2] as SymbolType, lines[1], parseInt(lines[3], 8));
-    
+
     let index = 3;
 
     while ((lines[index].startsWith("-1 ")) === false) {
