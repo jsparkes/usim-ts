@@ -27,6 +27,6 @@ export function html_init(): void {
         }
     });
 
-    canvas.add
+    canvas.add;
 }
 

@@ -25,7 +25,7 @@ class UExec {
 
 export let uexec = new UExec();
 
-export let PROM = Array<number>(512);  // Was uint64_t array
+export let PROM = Array<bigint>(512);  // Was uint64_t array
 export let IMEM = new Uint32Array(16 * 1024); // was uint64_t array
 export let AMEM = new Uint32Array(1024);
 let aaddr = 0;

@@ -13,15 +13,23 @@ let defaults = new Map<string, { [key: string]: string; }>();
 let iniFile: ConfigIniParser | undefined;
 
 export class Configuration {
+	cfg = new ConfigIniParser();
+	config_filename = "usim.ini";
 	icon_file = "icon.bmp";
-	window_position_x = 0;
-	window_position_y = 0;
+	ucode_prommcr_filename = "";
+	window_position_x = -1;
+	window_position_y = -1;
 	scale: number = 1;
 	allow_resize = false;
 	beep_amplitude = 1.0;
 	ascii_beep = false;
 	uch11_backend: any;
-	hybrid_udp_and_local: boolean;
+	hybrid_udp_and_local: boolean = true;
+	dump_state_flag = false;
+	verbose_dump_state_flag = false;
+	warm_boot_flag = false;
+	full_trace_lc = 0;
+	headless: boolean;
 }
 
 export let ucfg = new Configuration();
@@ -86,7 +94,7 @@ function set_defaults(config: ConfigIniParser): void {
 	 */
 }
 
-function get(cfg: ConfigIniParser, section: string, name: string): string | undefined {
+export function ucfg_get(cfg: ConfigIniParser, section: string, name: string): string | undefined {
 	let val: string | undefined = undefined;
 
 	// Check for default value first.
@@ -107,7 +115,8 @@ function get(cfg: ConfigIniParser, section: string, name: string): string | unde
  * Default values that need to be initialized before we read the
  * ConfigIniParser file so that the user can override them later.
  */
-export function ucfg_init(): void {
+export function ucfg_init(cfg: ConfigIniParser): void {
+	set_defaults(cfg);
 	/*
 	 * Change trace defaults; the default in trace.c is to be very
 	 * very quiet.
@@ -167,9 +176,9 @@ export function lmbucky(s: string): number {
 	return mod;
 }
 
-export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string, value: string): void {
+export function ucfg_handler(cfg: ConfigIniParser): void {
 	function INIHEQ(s: string, n: string): string | undefined {
-		return get(cfg, s, n);
+		return ucfg_get(cfg, s, n);
 	}
 
 	let val: string | undefined;
@@ -239,6 +248,19 @@ export function ucfg_handler(cfg: ConfigIniParser, section: string, name: string
 			}
 		}
 	}
+
+	if (val = INIHEQ("usim", "headless")) {
+		if (val) {
+			if (streq(val, "true"))
+				ucfg.headless = true;
+			else if (streq(val, "false"))
+				ucfg.headless = false;
+			else {
+				trace.warning(trace.USIM, `unknown value for headless: ${val}`);
+			}
+		}
+	}
+
 
 	if (val = INIHEQ("usim", "beep_amplitude")) {
 		if (val) {
@@ -509,6 +531,6 @@ export function ini_parse(fn: string): ConfigIniParser {
 	let parser = new ConfigIniParser();
 	let contents = fs.readFileSync(fn);
 	parser.parse(contents.toString());
-	
+
 	return parser;
 }

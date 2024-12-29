@@ -1,8 +1,14 @@
 import * as trace from './trace';
 import * as fs from 'fs';
-import * as ucfg from './ucfg';
-import { dump_state } from './ucode';
-import { SymbolTable } from "./usym";
+import { ini_parse, ucfg, ucfg_get, ucfg_handler, ucfg_init } from './ucfg';
+import { dump_state, read_prom } from './ucode';
+import { sym_read_file, SymbolTable } from "./usym";
+import { yargs } from 'yargs/yargs';
+import { ConfigIniParser } from 'config-ini-parser';
+import { tv_init } from './tv';
+import { disk_init, DISKS } from './disk';
+import { idle_init } from './idle';
+import { iob_init } from './iob';
 
 export const VERSION = "0.1.1";
 export let config_filename = "usim.ini";
@@ -45,82 +51,73 @@ function usage():void {
 	process.stderr.write(`  -h             help message\n`);
 }
 
-export function usim_init(int argc, char **argv)
+export function usim_init()
 {
 	process.stdout.write(`CADR emulator ${VERSION}`);
-	if (!fs.existsSync(config_filename)) {
-		config_fileName = "usim-301-0.ini";
-	}
-	config_filename = "usim.ini";
-	warm_boot_flag = false;
-	int c;
-	while ((c = getopt(argc, argv, "c:l:t:u:f:g:dDwh")) != -1) {
-		switch (c) {
-		case 'c': config_filename = strdup(optarg); break;
-		case 'd': dump_state_flag = true; break;
-		case 'D': verbose_dump_state_flag = true; break;
-		case 'w': warm_boot_flag = true; break;
-		case 'l': add_dump_lc(atoi(optarg)); break;
-		case 't': add_trace_vmem(atoi(optarg)); break;
-		case 'u': add_dump_npc(atoi(optarg)); break;
-		case 'f': full_trace_lc = atoi(optarg);
-			printf("enabling full tracing after LC #x%x\n", full_trace_lc);
-			break;
-		case 'g':
-		{
-			int x, y;
-			int nc = sscanf(optarg, "%d,%d", &x, &y);
-			if (nc == 2) {
-				window_position_x = x;
-				window_position_y = y;
-			} else {
-				fprintf(stderr, "invalid value, specify as -g X,Y\n");
-				return usim_app_failure;
-			}
-		}
-		break;
-		case 'h':
-			usage();
-			return usim_app_success;
-		default:
-			usage();
-			return usim_app_failure;
-		}
-	}
-	/* *INDENT-ON* */
-	argc -= optind;
-	argv += optind;
-	if (argc > 0) {
+
+	const argv = yargs(process.argv.slice(2)).options({
+		c: { type: 'string', default: "usim.ini" },
+		d: { type: 'boolean', default: false },
+		D: { type: 'boolean', default: false },
+		w: { type: 'boolean', default: false },
+		l: { type: 'number', default: 0 },
+		t: { type: 'number', default: 0 },
+		u: { type: 'number', default: 0 },
+		f: { type: 'number', default: 0 },
+		g: { type: 'string', default: "" },
+		h: { type: 'demand' },
+		// f: { choices: ['1', '2', '3'] }
+	  }).parseSync();
+
+	  if (argv.h) {
 		usage();
-		return -1;
+	  }
+
+    ucfg.config_filename  = argv.c;
+	if (!fs.existsSync(ucfg.config_filename)) {
+		ucfg.config_filename = "usim-301-0.ini";
 	}
-	ucfg_init();
-	if (ini_parse(config_filename, ucfg_handler, &ucfg) < 0)
-	{
-		fprintf(stderr, "Can't load '%s', using defaults\n", config_filename);
+	ucfg.dump_state_flag = argv.d;
+	ucfg.verbose_dump_state_flag = argv.D;
+	ucfg.warm_boot_flag = argv.w;
+	add_dump_lc(argv.l);
+	add_trace_vmem(argv.t);
+	add_dump_npc(atoi(argv.u);
+	ucfg.full_trace_lc = argv.f;
+	add_dump_npc(atoi(argv.u));
+	if (argv.g.length() > 0) {
+		const nums = argv.split("[\s]+");
+		if (nums.length === 2) { }
+		const x = parseInt(nums[0]);
+		const y = parseInt(nums[1]);
+		ucfg.window_position_x = x;
+		ucfg.window_position_y = y;
 	}
-#if SIGINFO
-	signal(SIGINFO, siginfo_handler);
-#endif
-	signal(SIGUSR1, siginfo_handler);
-	signal(SIGHUP, sighup_handler);
-	read_prom(ucfg.ucode_prommcr_filename);
-	sym_read_file(&sym_prom, ucfg.ucode_promsym_filename);
-	if (headless == false)
+	const iniContent = fs.readFileSync(ucfg.config_filename);
+	const parser = new ConfigIniParser(); //Use default delimiter
+	ucfg.cfg = parser.parse(iniContent.toString();
+	ucfg_init(ucfg.cfg);
+	ucfg_handler(ucfg.cfg);
+	process.on('SIGINFO', siginfo_handler);
+	process.on('SIGUSR1', siginfo_handler);
+	process.on('SIGHUP', sighup_handler);git://git.sv.gnu.org/emacs.git
+	read_prom(ucfg_get(ucfg.cfg, "ucode", "prommcr_filename"));
+	sym_read_file(sym_prom, ucfg_get(ucfg.cfg, "ucode", "ucode_promsym_filename"));
+	if (ucfg.headless == false)
 	{
 		tv_init();
 	}
 
-#define DI(unit)	disk_init(unit, ucfg.disk_disk##unit## _filename);
+	function DI(unit: number) {
+		disk_init(unit, ucfg_get(ucfg.cfg, "disk", `disk${unit}_filename`));
+	}
+
 	DI(0); DI(1); DI(2); DI(3);
 	DI(4); DI(5); DI(6); DI(7);
-#undef DI
 
-	sym_read_file(&sym_mcr, ucfg.ucode_mcrsym_filename);
+	sym_read_file(sym_mcr, ucfg_get(ucfg.cfg, "ucode", "ucode_mcrsym_filename"));
 
 	iob_init();
 	idle_init();
-
-	return usim_app_continue;
 }
 
