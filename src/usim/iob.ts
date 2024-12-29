@@ -277,10 +277,13 @@ export function iob_unibus_write(offset: number, v: number): void {
 }
 
 export function iob_poll(): void {
-  #if WITH_SDL3;
-  #else;
-  mouse_poll();
-  #endif;
   // there is no kbd_poll; handled by events
   uch11_poll();
+}
+
+export function iob_init(): void {
+  kbd_init();
+	mouse_init();
+#endif
+	uch11_init();
 }
