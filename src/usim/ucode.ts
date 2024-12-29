@@ -67,7 +67,10 @@ function printlbl(type: SymbolType, loc: number) {
   }
 }
 
-export function read_prom(file: string) {
+export function read_prom(file: string | undefined) {
+  if (!file) {
+    return undefined;
+  }
   const fd = fs.openSync(file, "rb");
   if (fd < 0) {
     console.log(`failed to open file ${file}`);
@@ -79,14 +82,16 @@ export function read_prom(file: string) {
   trace.info(trace.USIM, `prom (${file}): code: ${code}, start: ${start}, size: ${size}`);
   let loc = start;
   for (let i = 0; i < size; i++) {
-    const w1 = read16le(fd);
-    const w2 = read16le(fd);
-    const w3 = read16le(fd);
-    const w4 = read16le(fd);
-    PROM[loc] = (w1 << 48) | (w2 << 32) | (w3 << 16) | (w4 << 0);
+    const w1 = BigInt(read16le(fd));
+    const w2 = BigInt(read16le(fd));
+    const w3 = BigInt(read16le(fd));
+    const w4 = BigInt(read16le(fd));
+    PROM[loc] = (w1 << 48n) | (w2 << 32n) | (w3 << 16n) | (w4 << 0n);
     loc++;
   }
   return 0;
+}
+return undefined;
 }
 
 // Mark: interrupt handling
@@ -466,64 +471,62 @@ export function restore_state(fn: string): void {
   fs.closeSync(fd);
 }
 
-function dump_ucode_things(fd: number): void
-{
-	dump_write_value(fd, str4("MCPC"), pc_history[(pc_history_head - 1 + MAX_PC_HISTORY) % MAX_PC_HISTORY].pc);	/* Microcode PC */
-	dump_write_value(fd, str4("USTP"), spcptr);	/* Microcode stack pointer */
-	dump_write_value(fd, str4("RMD_"), MFMEM[0o30]);	/* MD register */
-	dump_write_value(fd, str4("RVMA"), MFMEM[0o20]);	/* VMA register */
-	dump_write_value(fd, str4("RQ__"), uexec.q);	/* Q register */
-	dump_write_value(fd, str4("ROPC"), uexec.OPC);	/* OPC register */
-	dump_write_value(fd, str4("ROAL"), MFMEM[0o16]);	/* OA-REG-LOW register */
-	dump_write_value(fd, str4("ROAH"), MFMEM[0o17]);	/* OA-REG-HIGH register */
-	dump_write_segment(fd, str4("DMEM"), DMEM.length, DMEM);	/* Dispatch memory */
-	dump_write_segment(fd, str4("IMEM"), IMEM.length, DMEM);	/* Instruction memory */
-	dump_write_segment(fd, str4("USTK"), spc.length, spc);	/* Microcode stack */
-	dump_write_header(fd, str4("PCHL"), MAX_PC_HISTORY);	/* Microcode PC history list */
-	for (let i = 0; i < MAX_PC_HISTORY; i++) {
-		write32le(fd, pc_history[(pc_history_head - i - 1 + MAX_PC_HISTORY) % MAX_PC_HISTORY].pc);
-	}
-	dump_write_header(fd, "PDHL"), (4 * MAX_PDL_HISTORY));	/* PDL action history list */
-	for (let i = 0; i < MAX_PDL_HISTORY; i++) {
-		write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].read_write_indexer_npc);
-		write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].index);
-		write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].value);
-		write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].lc);
-	}
+function dump_ucode_things(fd: number): void {
+  dump_write_value(fd, str4("MCPC"), pc_history[(pc_history_head - 1 + MAX_PC_HISTORY) % MAX_PC_HISTORY].pc);	/* Microcode PC */
+  dump_write_value(fd, str4("USTP"), spcptr);	/* Microcode stack pointer */
+  dump_write_value(fd, str4("RMD_"), MFMEM[0o30]);	/* MD register */
+  dump_write_value(fd, str4("RVMA"), MFMEM[0o20]);	/* VMA register */
+  dump_write_value(fd, str4("RQ__"), uexec.q);	/* Q register */
+  dump_write_value(fd, str4("ROPC"), uexec.OPC);	/* OPC register */
+  dump_write_value(fd, str4("ROAL"), MFMEM[0o16]);	/* OA-REG-LOW register */
+  dump_write_value(fd, str4("ROAH"), MFMEM[0o17]);	/* OA-REG-HIGH register */
+  dump_write_segment(fd, str4("DMEM"), DMEM.length, DMEM);	/* Dispatch memory */
+  dump_write_segment(fd, str4("IMEM"), IMEM.length, DMEM);	/* Instruction memory */
+  dump_write_segment(fd, str4("USTK"), spc.length, spc);	/* Microcode stack */
+  dump_write_header(fd, str4("PCHL"), MAX_PC_HISTORY);	/* Microcode PC history list */
+  for (let i = 0; i < MAX_PC_HISTORY; i++) {
+    write32le(fd, pc_history[(pc_history_head - i - 1 + MAX_PC_HISTORY) % MAX_PC_HISTORY].pc);
+  }
+  dump_write_header(fd, "PDHL"), (4 * MAX_PDL_HISTORY));	/* PDL action history list */
+  for (let i = 0; i < MAX_PDL_HISTORY; i++) {
+    write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].read_write_indexer_npc);
+    write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].index);
+    write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].value);
+    write32le(fd, pdl_history[(pdl_history_next - i - 1 + MAX_PDL_HISTORY) % MAX_PDL_HISTORY].lc);
+  }
 }
 
-function save_state(fn: string): void
-{
-	const fd = fs.openSync(fn, "w+", 0o666);
-	if (fd < 0) {
+function save_state(fn: string): void {
+  const fd = fs.openSync(fn, "w+", 0o666);
+  if (fd < 0) {
     trace.warning(trace.USIM, `usim: failed to save state file ${fn}`);
-		return;
-	}
+    return;
+  }
   trace.info(trace.USIM, `usim: dumping state to ${fn}`);
-	write32le(fd, DUMP_FILE_MAGIC);
-	write32le(fd, DUMP_FILE_VERSION);
-	dump_write_value(fd, str4("PDLI"), MFMEM[0o13]);	/* PDL index */
-	dump_write_value(fd, str4("PDLP"), MFMEM[0o14]);	/* PDL pointer */
-	dump_write_value(fd, str4("LCLV"), MFMEM[0o01]);	/* LC - last value */
-	dump_write_header(fd, str4("LCHL"), MAX_LC_HISTORY);	/* LC - history list */
-	for (let i = 0; i < MAX_LC_HISTORY; i++) {
-		write32le(fd, lc_history[(lc_history_head - i - 1 + MAX_LC_HISTORY) % MAX_LC_HISTORY].lc);
-	}
-	dump_ucode_things(fd);
-	dump_write_segment(fd, str4("L1MP"), sizeof(l1_map) / 4, (uint32_t *) l1_map);	/* Level 1 Memory Map */
-	dump_write_segment(fd, str4("L2MP"), sizeof(l2_map) / 4, (uint32_t *) l2_map);	/* Level 2 Memory Map */
-	dump_write_segment(fd, str4("PDLM"), sizeof(pdl) / 4, (uint32_t *) pdl);	/* PDL Memory */
-	dump_write_segment(fd, str4("AMEM"), sizeof(amem) / 4, (uint32_t *) amem);	/* A-Memory */
-	dump_write_segment(fd, str4("MMEM"), sizeof(mmem) / 4, (uint32_t *) mmem);	/* M-Memory */
-	dump_write_header(fd, str4("PMEM"), PAGES_TO_SAVE * 256);	/* Physical Memory */
-	for (let i = 0; i < PAGES_TO_SAVE; i++)
-		dump_write_data(fd, 256 * 4, get_page(i));
-	/*
-	 * Dummy End-of-File marker tag.  This must be the last tag
-	 * written to the file
-	 */
-	dump_write_header(fd, str4("EOF_"), 0);
-	fs.closeSync(fd);
+  write32le(fd, DUMP_FILE_MAGIC);
+  write32le(fd, DUMP_FILE_VERSION);
+  dump_write_value(fd, str4("PDLI"), MFMEM[0o13]);	/* PDL index */
+  dump_write_value(fd, str4("PDLP"), MFMEM[0o14]);	/* PDL pointer */
+  dump_write_value(fd, str4("LCLV"), MFMEM[0o01]);	/* LC - last value */
+  dump_write_header(fd, str4("LCHL"), MAX_LC_HISTORY);	/* LC - history list */
+  for (let i = 0; i < MAX_LC_HISTORY; i++) {
+    write32le(fd, lc_history[(lc_history_head - i - 1 + MAX_LC_HISTORY) % MAX_LC_HISTORY].lc);
+  }
+  dump_ucode_things(fd);
+  dump_write_segment(fd, str4("L1MP"), sizeof(l1_map) / 4, (uint32_t *) l1_map);	/* Level 1 Memory Map */
+  dump_write_segment(fd, str4("L2MP"), sizeof(l2_map) / 4, (uint32_t *) l2_map);	/* Level 2 Memory Map */
+  dump_write_segment(fd, str4("PDLM"), sizeof(pdl) / 4, (uint32_t *) pdl);	/* PDL Memory */
+  dump_write_segment(fd, str4("AMEM"), sizeof(amem) / 4, (uint32_t *) amem);	/* A-Memory */
+  dump_write_segment(fd, str4("MMEM"), sizeof(mmem) / 4, (uint32_t *) mmem);	/* M-Memory */
+  dump_write_header(fd, str4("PMEM"), PAGES_TO_SAVE * 256);	/* Physical Memory */
+  for (let i = 0; i < PAGES_TO_SAVE; i++)
+    dump_write_data(fd, 256 * 4, get_page(i));
+  /*
+   * Dummy End-of-File marker tag.  This must be the last tag
+   * written to the file
+   */
+  dump_write_header(fd, str4("EOF_"), 0);
+  fs.closeSync(fd);
 }
 
 
