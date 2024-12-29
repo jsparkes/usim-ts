@@ -265,9 +265,13 @@ export function disk_poll(): void {
 }
 
 
-export function disk_init(unit: number, filename: string) {
+export function disk_init(unit: number, filename: string | undefined ) {
   if (unit >= DISKS_MAX) {
     trace.error(trace.USIM, `disk: only 8 disk devices are supported`);
+    return -1;
+  }
+  if (!filename) {
+    trace.debug(trace.USIM, `disk: filename blank for unit ${unit}`);
     return -1;
   }
   trace.info(trace.USIM, `disk: opening ${filename} as unit ${unit}`);
