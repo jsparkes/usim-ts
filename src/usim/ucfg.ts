@@ -5,6 +5,7 @@ import { ConfigIniParser } from 'config-ini-parser';
 import { set_tv_monitor } from './tv';
 import { set_headless, set_usim_icon_file } from './usim';
 import { set_idle_cycles, set_idle_quantum, set_idle_timeout } from './idle';
+import { UCH11_BACKEND } from './uch11';
 
 type Names = Map<string, string>;
 type Sections = Map<string, Names>;
@@ -29,10 +30,11 @@ export class Configuration {
 	verbose_dump_state_flag = false;
 	warm_boot_flag = false;
 	full_trace_lc = 0;
-	headless: boolean;
+	headless: boolean = false;
 }
 
 export let ucfg = new Configuration();
+export let cfg: ConfigIniParser | undefined;
 
 function X(config: ConfigIniParser, section: string, name: string, value: string): void {
 	defaults.set(section, { name: value });
@@ -328,11 +330,11 @@ export function ucfg_handler(cfg: ConfigIniParser): void {
 	}
 
 	if (val = INIHEQ("chaos", "backend")) {
-		if (streq(val, "daemon")) ucfg.uch11_backend = UCH11_BACKEND_DAEMON;
-		else if (streq(val, "local")) ucfg.uch11_backend = UCH11_BACKEND_LOCAL;
-		else if (streq(val, "udp")) ucfg.uch11_backend = UCH11_BACKEND_UDP;
+		if (streq(val, "daemon")) ucfg.uch11_backend = UCH11_BACKEND.DAEMON;
+		else if (streq(val, "local")) ucfg.uch11_backend = UCH11_BACKEND.LOCAL;
+		else if (streq(val, "udp")) ucfg.uch11_backend = UCH11_BACKEND.UDP;
 		else if (streq(val, "hybrid")) {
-			ucfg.uch11_backend = UCH11_BACKEND_UDP;
+			ucfg.uch11_backend = UCH11_BACKEND.UDP;
 			ucfg.hybrid_udp_and_local = true;
 		}
 		else {
