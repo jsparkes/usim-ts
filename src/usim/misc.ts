@@ -3,6 +3,12 @@ import * as trace from './trace';
 import { BLOCKSZ } from './disk';
 import { MemoryBlock } from './memory';
 
+export function error(level: number, msg: string): void {
+    process.stderr.write(msg);
+    process.stderr.write("\n");
+    process.exit(level);
+}
+
 // Less typing for output
 export function octal(value: number, width?: number): string {
     if (width)
