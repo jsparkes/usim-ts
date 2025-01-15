@@ -3,7 +3,7 @@
   "[typescript]": {
     "editor.tabsize": 2,
   },
-  "typescript.format.insertSpaceAfterConstructor": true,
+  "typescript.format.insertSpaceAfterConstructor": false,
   "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": false,
   "typescript.preferences.quoteStyle": "single",
   "javascript.preferences.quoteStyle": "single",
