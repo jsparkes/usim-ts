@@ -3,4 +3,10 @@
   "[typescript]": {
     "editor.tabsize": 2,
   },
+  "typescript.format.insertSpaceAfterConstructor": true,
+  "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": false,
+  "typescript.preferences.quoteStyle": "single",
+  "javascript.preferences.quoteStyle": "single",
+  "editor.formatOnPaste": true,
+  "editor.formatOnType": true,
 }
