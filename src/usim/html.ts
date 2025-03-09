@@ -18,7 +18,7 @@ export function html_init(): void {
     ctx = canvas.getContext("2d");
     ctx.scale(scale, scale);
     imageData = createImageData(tv_bitmap, tv_width, tv_height);
-    ctx.drawImage(imageData, 0, 0);
+    // ctx.drawImage(imageData, 0, 0);
 
     loadImage(ucfg.icon_file).then((img) => {
         icon = img;

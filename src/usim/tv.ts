@@ -166,7 +166,7 @@ export function tv_init(): void
 // #elif WITH_SDL2
 // 	sdl2_init();
 // #endif
-  html_init();
+//  html_init();
   setInterval(sigalrm_handler, 16000);
 }
 

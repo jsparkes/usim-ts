@@ -37,7 +37,7 @@ export class ChaosNet {
 	hybrid_udp_and_local = 0;
 	csr = CHAOS_CSR_RESET;
 	// Common to backends
-	send: (buffer: Uint16Array, count: number) => number = chaos_send_to_local;
+	send: (buffer: Uint16Array, count: number) => boolean = chaos_send_to_local;
 	bit_count = 0;
 	lost_count = 0;
 	const xmit_buffer = new Uint16Array(4096);
@@ -91,7 +91,7 @@ function uch11_checksum(buffer: Uint16Array, count: number): number {
 export function uch11_rx_pkt(): void {
 	uch11.rcv_buffer_ptr = 0;
 	uch11.bit_count = (uch11.rcv_buffer_size * 2 * 8) - 1;
-	trace.info(trace.CHAOS, `chaos: receiving ${uch11_rcv_buffer_size} words`);
+	trace.info(trace.CHAOS, `chaos: receiving ${uch11.rcv_buffer_size} words`);
 	if (uch11.rcv_buffer_size > 0) {
 		trace.debug(trace.CHAOS, `chaos: set csr receive done, generate interrupt`);
 		uch11.csr |= CHAOS_CSR_RECEIVE_DONE;
@@ -323,4 +323,11 @@ export function uch11_init(cfg: ConfigIniParser | undefined): number {
 	}
 	trace.notice(trace.USIM, `chaos: mapping ${whichdir} to ${root_directory}`);
 	return 0;
+}
+
+export function uch11_valid_addr(addr: number): boolean {
+	if (addr == 0 || addr >> (1 >> 16) || (addr & 0xff) == 0 || ((addr >> 8) & 0xff) == 0) {
+		return false;
+	}
+	return true;
 }
